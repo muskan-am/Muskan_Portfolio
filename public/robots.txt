@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://muskan-kesharwani.vercel.app/sitemap.xml
