@@ -3,7 +3,16 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef } from "react";
-import { Mail, Phone, ExternalLink, Send, CheckCircle, AlertCircle } from "lucide-react";
+import {
+  Mail,
+  Phone,
+  ExternalLink,
+  Send,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import { GithubIcon, LinkedinIcon, TwitterIcon } from "@/components/icons/BrandIcons";
 
 type FormData = {
@@ -14,19 +23,38 @@ type FormData = {
 
 type FormErrors = Partial<FormData>;
 
+type FormStatus = "idle" | "submitting" | "success" | "error";
+
 function validate(data: FormData): FormErrors {
   const errors: FormErrors = {};
-  if (!data.name.trim()) errors.name = "Name is required.";
-  if (!data.email.trim()) {
+  const trimmedName = data.name.trim();
+  const trimmedEmail = data.email.trim();
+  const trimmedMessage = data.message.trim();
+
+  if (!trimmedName) {
+    errors.name = "Name is required.";
+  } else if (trimmedName.length < 2) {
+    errors.name = "Name must be at least 2 characters.";
+  } else if (trimmedName.length > 100) {
+    errors.name = "Name cannot exceed 100 characters.";
+  }
+
+  if (!trimmedEmail) {
     errors.email = "Email is required.";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
     errors.email = "Please enter a valid email address.";
+  } else if (trimmedEmail.length > 150) {
+    errors.email = "Email cannot exceed 150 characters.";
   }
-  if (!data.message.trim()) {
+
+  if (!trimmedMessage) {
     errors.message = "Message is required.";
-  } else if (data.message.trim().length < 20) {
-    errors.message = "Message must be at least 20 characters.";
+  } else if (trimmedMessage.length < 10) {
+    errors.message = "Message must be at least 10 characters.";
+  } else if (trimmedMessage.length > 3000) {
+    errors.message = "Message cannot exceed 3000 characters.";
   }
+
   return errors;
 }
 
@@ -36,7 +64,8 @@ export default function Contact() {
 
   const [form, setForm] = useState<FormData>({ name: "", email: "", message: "" });
   const [errors, setErrors] = useState<FormErrors>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [status, setStatus] = useState<FormStatus>("idle");
+  const [serverError, setServerError] = useState<string>("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -44,18 +73,57 @@ export default function Contact() {
     if (errors[name as keyof FormErrors]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
+    if (serverError) {
+      setServerError("");
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (status === "submitting") return;
+
     const errs = validate(form);
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
     }
-    // NOTE: No backend configured. This is a UI-only form.
-    // To enable email sending, integrate with a service like Resend, EmailJS, or a custom API route.
-    setSubmitted(true);
+
+    setStatus("submitting");
+    setServerError("");
+
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          message: form.message.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setStatus("success");
+        setForm({ name: "", email: "", message: "" });
+        setErrors({});
+      } else {
+        setStatus("error");
+        setServerError(
+          data.error ||
+            "Unable to send your message. Please try again or contact me directly."
+        );
+      }
+    } catch (err) {
+      console.error("Contact form fetch error:", err);
+      setStatus("error");
+      setServerError(
+        "Unable to send your message. Please try again or contact me directly."
+      );
+    }
   };
 
   const inputStyle = (hasError: boolean) => ({
@@ -68,7 +136,7 @@ export default function Contact() {
     color: "var(--text-primary)",
     fontFamily: "'Inter', sans-serif",
     outline: "none",
-    transition: "border-color 0.2s",
+    transition: "border-color 0.2s, background-color 0.2s",
     resize: "none" as const,
   });
 
@@ -129,8 +197,8 @@ export default function Contact() {
               lineHeight: 1.75,
             }}
           >
-            I&apos;m open to full-time opportunities, interesting projects and
-            conversations about building modern web applications.
+            I&apos;m open to full-time opportunities, high-impact projects, and
+            conversations about building scalable web applications.
           </p>
         </motion.div>
 
@@ -138,8 +206,7 @@ export default function Contact() {
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1.4fr",
-            gap: "3rem",
-            alignItems: "start",
+            gap: "2rem",
           }}
           className="contact-grid"
         >
@@ -155,13 +222,12 @@ export default function Contact() {
               <h3
                 style={{
                   fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: "1rem",
+                  fontSize: "1.1rem",
                   fontWeight: 600,
-                  color: "var(--text-secondary)",
-                  letterSpacing: "0.05em",
+                  color: "var(--text-primary)",
                 }}
               >
-                GET IN TOUCH
+                Contact Details
               </h3>
 
               <a
@@ -175,8 +241,9 @@ export default function Contact() {
                   transition: "color 0.2s",
                 }}
                 onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "#93C5FD")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text-primary)")}
-                aria-label="Send email to Muskan"
+                onMouseLeave={(e) =>
+                  ((e.currentTarget as HTMLElement).style.color = "var(--text-primary)")
+                }
               >
                 <div
                   style={{
@@ -212,8 +279,9 @@ export default function Contact() {
                   transition: "color 0.2s",
                 }}
                 onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "#93C5FD")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text-primary)")}
-                aria-label="Call Muskan"
+                onMouseLeave={(e) =>
+                  ((e.currentTarget as HTMLElement).style.color = "var(--text-primary)")
+                }
               >
                 <div
                   style={{
@@ -232,7 +300,9 @@ export default function Contact() {
                 </div>
                 <div>
                   <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", fontFamily: "'Inter', sans-serif" }}>Phone</p>
-                  <p style={{ fontSize: "0.9rem", fontFamily: "'Inter', sans-serif", fontWeight: 500 }}>+91 8738007458</p>
+                  <p style={{ fontSize: "0.9rem", fontFamily: "'Inter', sans-serif", fontWeight: 500 }}>
+                    +91 8738007458
+                  </p>
                 </div>
               </a>
             </div>
@@ -313,56 +383,76 @@ export default function Contact() {
             animate={headerInView ? { opacity: 1, x: 0 } : {}}
             transition={{ delay: 0.25, duration: 0.7, ease: "easeOut" }}
           >
-            {submitted ? (
-              <div
+            {status === "success" ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
                 className="glass-card"
                 style={{
-                  padding: "3rem 2rem",
+                  padding: "3.5rem 2rem",
                   textAlign: "center",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
-                  gap: "1rem",
+                  gap: "1.25rem",
                 }}
               >
-                <CheckCircle size={48} color="#10B981" />
+                <div
+                  style={{
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "50%",
+                    background: "rgba(16,185,129,0.12)",
+                    border: "1px solid rgba(16,185,129,0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <CheckCircle size={36} color="#10B981" />
+                </div>
                 <h3
                   style={{
                     fontFamily: "'Space Grotesk', sans-serif",
-                    fontSize: "1.3rem",
+                    fontSize: "1.4rem",
                     fontWeight: 700,
                     color: "var(--text-primary)",
                   }}
                 >
-                  Message Received!
+                  Message Sent Successfully!
                 </h3>
                 <p
                   style={{
-                    fontSize: "0.9rem",
+                    fontSize: "0.95rem",
                     color: "var(--text-secondary)",
                     fontFamily: "'Inter', sans-serif",
                     lineHeight: 1.7,
-                    maxWidth: "340px",
+                    maxWidth: "380px",
                   }}
                 >
-                  Thank you for reaching out. I&apos;ll get back to you as soon as possible.
+                  Thank you for reaching out. I&apos;ll get back to you soon.
                 </p>
-                <p
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatus("idle");
+                    setServerError("");
+                    setForm({ name: "", email: "", message: "" });
+                  }}
+                  className="btn-secondary"
                   style={{
-                    fontSize: "0.75rem",
-                    color: "var(--text-tertiary)",
-                    fontFamily: "'Inter', sans-serif",
                     marginTop: "0.5rem",
-                    padding: "0.5rem 1rem",
-                    background: "rgba(245,158,11,0.08)",
-                    border: "1px solid rgba(245,158,11,0.2)",
-                    borderRadius: "8px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
                   }}
                 >
-                  ⚠ Backend integration pending — email was not actually sent.
-                  <br />Please contact directly at muskankeshwarni63@gmail.com.
-                </p>
-              </div>
+                  <RefreshCw size={15} />
+                  Send Another Message
+                </button>
+              </motion.div>
             ) : (
               <form
                 onSubmit={handleSubmit}
@@ -371,17 +461,53 @@ export default function Contact() {
                 className="glass-card"
                 style={{ padding: "2rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}
               >
-                <h3
-                  style={{
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    fontSize: "1.1rem",
-                    fontWeight: 600,
-                    color: "var(--text-primary)",
-                    marginBottom: "0.25rem",
-                  }}
-                >
-                  Send a Message
-                </h3>
+                <div>
+                  <h3
+                    style={{
+                      fontFamily: "'Space Grotesk', sans-serif",
+                      fontSize: "1.2rem",
+                      fontWeight: 700,
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    Send a Message
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "var(--text-tertiary)",
+                      fontFamily: "'Inter', sans-serif",
+                      marginTop: "0.2rem",
+                    }}
+                  >
+                    Directly delivered to my inbox.
+                  </p>
+                </div>
+
+                {/* Server error alert banner */}
+                {status === "error" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    role="alert"
+                    style={{
+                      padding: "0.875rem 1rem",
+                      background: "rgba(239,68,68,0.08)",
+                      border: "1px solid rgba(239,68,68,0.3)",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "0.6rem",
+                      fontSize: "0.85rem",
+                      color: "#FCA5A5",
+                      fontFamily: "'Inter', sans-serif",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    <AlertCircle size={16} color="#F87171" style={{ flexShrink: 0, marginTop: "2px" }} />
+                    <span>{serverError || "Unable to send your message. Please try again or contact me directly."}</span>
+                  </motion.div>
+                )}
 
                 {/* Name */}
                 <div>
@@ -402,6 +528,7 @@ export default function Contact() {
                     id="contact-name"
                     name="name"
                     type="text"
+                    disabled={status === "submitting"}
                     value={form.name}
                     onChange={handleChange}
                     placeholder="Your full name"
@@ -444,6 +571,7 @@ export default function Contact() {
                     id="contact-email"
                     name="email"
                     type="email"
+                    disabled={status === "submitting"}
                     value={form.email}
                     onChange={handleChange}
                     placeholder="your@email.com"
@@ -486,6 +614,7 @@ export default function Contact() {
                     id="contact-message"
                     name="message"
                     rows={5}
+                    disabled={status === "submitting"}
                     value={form.message}
                     onChange={handleChange}
                     placeholder="Tell me about your project, opportunity, or question..."
@@ -508,30 +637,32 @@ export default function Contact() {
                   )}
                 </div>
 
-                {/* Disclaimer */}
-                <p
-                  style={{
-                    fontSize: "0.72rem",
-                    color: "var(--text-tertiary)",
-                    fontFamily: "'Inter', sans-serif",
-                    padding: "0.5rem 0.75rem",
-                    background: "rgba(245,158,11,0.06)",
-                    border: "1px solid rgba(245,158,11,0.15)",
-                    borderRadius: "8px",
-                  }}
-                >
-                  ⚠ Backend integration pending — this form does not yet send emails.
-                  To enable, integrate with Resend or EmailJS.
-                </p>
-
+                {/* Submit button */}
                 <button
                   type="submit"
+                  disabled={status === "submitting"}
                   className="btn-primary"
-                  style={{ alignSelf: "flex-start" }}
+                  style={{
+                    alignSelf: "flex-start",
+                    opacity: status === "submitting" ? 0.75 : 1,
+                    cursor: status === "submitting" ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
                   aria-label="Submit contact form"
                 >
-                  <Send size={16} />
-                  Send Message
+                  {status === "submitting" ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={16} />
+                      Send Message
+                    </>
+                  )}
                 </button>
               </form>
             )}
@@ -541,5 +672,3 @@ export default function Contact() {
     </section>
   );
 }
-
-

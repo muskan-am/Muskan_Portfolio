@@ -390,6 +390,36 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* Navbar responsive helpers */
+.desktop-nav {
+  display: flex !important;
+  align-items: center;
+  gap: 0.25rem;
+  list-style: none;
+}
+
+.nav-resume-btn {
+  display: inline-flex !important;
+}
+
+.mobile-menu-btn {
+  display: none !important;
+}
+
+@media (max-width: 960px) {
+  .desktop-nav {
+    display: none !important;
+  }
+  .nav-resume-btn {
+    display: none !important;
+  }
+  .mobile-menu-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
 /* Experience: tighten on mobile */
 @media (max-width: 600px) {
   .experience-header {
