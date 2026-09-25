@@ -173,6 +173,7 @@ export default function Hero() {
             <span style={{ color: "#93C5FD" }}>Next.js</span>,{" "}
             <span style={{ color: "#93C5FD" }}>React</span>,{" "}
             <span style={{ color: "#6EE7B7" }}>Node.js</span>,{" "}
+            <span style={{ color: "#6EE7B7" }}>Typescript</span>,{" "}
             <span style={{ color: "#C4B5FD" }}>PostgreSQL</span>, MongoDB and Prisma, with a focus on
             clean architecture, secure authentication and real-world user experiences.
           </motion.p>
